@@ -87,7 +87,7 @@ v4l2-ctl --device=/dev/video1 --list-formats-ext
 
 ### Multiple Cameras
 
-The server automatically detects all available cameras using `v4l2-ctl`. A drop-down menu on the main page lets you switch between them by name. The first detected device is used by default when the application starts.
+The server automatically discovers all usable cameras using `v4l2-ctl`. On startup it attempts each detected device until one successfully initializes. A drop-down menu on the main page lets you switch between cameras by name.
 
 ### Timelapse Capture
 

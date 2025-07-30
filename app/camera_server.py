@@ -33,8 +33,17 @@ def discover_cameras():
             while i < len(lines) and lines[i].startswith("\t"):
                 dev = lines[i].strip()
                 if dev.startswith("/dev/video"):
-                    cameras.append((name, dev))
-                    break
+                    # Verify the device can be queried. Some video nodes are not capture capable
+                    check = subprocess.run(
+                        f"v4l2-ctl --device={dev} --list-formats-ext",
+                        shell=True,
+                        capture_output=True,
+                        text=True,
+                        timeout=5,
+                    )
+                    if check.returncode == 0:
+                        cameras.append((name, dev))
+                        break
                 i += 1
         else:
             i += 1
@@ -505,18 +514,24 @@ def initialize_camera(device=None):
         if not available_cameras:
             print("No cameras found")
             return False
-        device = available_cameras[0][1]
+        # Try available devices until one succeeds
+        devices_to_try = [dev for _, dev in available_cameras]
+    else:
+        devices_to_try = [device]
 
     if camera:
         camera.cleanup()
 
-    try:
-        camera = ThreadSafeCameraController(device)
-        return True
-    except Exception as e:
-        print(f"Camera init failed: {e}")
-        camera = None
-        return False
+    for dev in devices_to_try:
+        try:
+            camera = ThreadSafeCameraController(dev)
+            return True
+        except Exception as e:
+            print(f"Camera init failed on {dev}: {e}")
+            camera = None
+
+    print("No usable cameras found")
+    return False
 
 @app.route('/')
 def index():
