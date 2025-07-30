@@ -38,6 +38,13 @@ def discover_cameras():
                 i += 1
         else:
             i += 1
+
+    # Sort devices numerically so /dev/video0 comes before /dev/video10
+    def dev_index(dev_path):
+        m = re.search(r"/dev/video(\d+)", dev_path)
+        return int(m.group(1)) if m else 0
+
+    cameras.sort(key=lambda x: dev_index(x[1]))
     return cameras
 
 class ThreadSafeCameraController:
