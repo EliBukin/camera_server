@@ -85,14 +85,9 @@ v4l2-ctl --device=/dev/video1 --list-formats-ext
    - Camera controls (sliders, checkboxes, dropdowns) on the right
    - Resolution selector and reset button at the top
 
-### Custom Camera Device
+### Multiple Cameras
 
-If your camera is not at `/dev/video1`, modify the device path in the code:
-
-```python
-# Change this line in the ThreadSafeCameraController class
-def __init__(self, device="/dev/video0"):  # or your device path
-```
+The server automatically detects all available cameras using `v4l2-ctl`. A drop-down menu on the main page lets you switch between them by name. The first detected device is used by default when the application starts.
 
 ### Timelapse Capture
 
