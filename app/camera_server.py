@@ -13,6 +13,32 @@ import os
 
 app = Flask(__name__)
 camera = None
+available_cameras = []
+
+def discover_cameras():
+    """Return a list of tuples (name, device) for detected cameras"""
+    cmd = "v4l2-ctl --list-devices"
+    result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+    if result.returncode != 0:
+        return []
+
+    cameras = []
+    lines = result.stdout.splitlines()
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        if line and not line.startswith("\t"):
+            name = line.rstrip(":")
+            i += 1
+            while i < len(lines) and lines[i].startswith("\t"):
+                dev = lines[i].strip()
+                if dev.startswith("/dev/video"):
+                    cameras.append((name, dev))
+                    break
+                i += 1
+        else:
+            i += 1
+    return cameras
 
 class ThreadSafeCameraController:
     def __init__(self, device="/dev/video0"):
@@ -470,23 +496,26 @@ class VideoRecorder:
                 time.sleep(0.05)
 
 # Initialize camera
-def initialize_camera():
-    global camera
-    try:
-        camera = ThreadSafeCameraController()
-        return True
-    except Exception as e:
-        print(f"Camera init failed: {e}")
-        return False
+def initialize_camera(device=None):
+    """Initialize the global camera. If device is None, use first detected."""
+    global camera, available_cameras
+    if device is None:
+        if not available_cameras:
+            available_cameras = discover_cameras()
+        if not available_cameras:
+            print("No cameras found")
+            return False
+        device = available_cameras[0][1]
 
-# Initialize camera
-def initialize_camera():
-    global camera
+    if camera:
+        camera.cleanup()
+
     try:
-        camera = ThreadSafeCameraController()
+        camera = ThreadSafeCameraController(device)
         return True
     except Exception as e:
         print(f"Camera init failed: {e}")
+        camera = None
         return False
 
 @app.route('/')
@@ -498,6 +527,11 @@ def index():
     options_html = "\n".join(
         f'<option value="{fmt},{w},{h}">{fmt} - {w}x{h}</option>'
         for fmt, w, h in camera.supported_resolutions
+    )
+
+    camera_options_html = "\n".join(
+        f'<option value="{dev}" {"selected" if dev == camera.device_path else ""}>{name}</option>'
+        for name, dev in available_cameras
     )
 
     # Split controls by type
@@ -603,6 +637,10 @@ def index():
     <body>
         <h2>USB Camera Stream</h2>
         <div class="main-controls">
+            <label>Camera:</label>
+            <select id="camera-select" onchange="changeCamera()">
+                {{ camera_options_html|safe }}
+            </select>
             <label>Resolution:</label>
             <select id="resolution" onchange="changeResolution()">
                 {{ options_html|safe }}
@@ -673,6 +711,15 @@ def index():
                 });
             }
 
+            function changeCamera() {
+                const dev = document.getElementById("camera-select").value;
+                fetch("/set_camera", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ device: dev })
+                }).then(() => location.reload());
+            }
+
             function startTimelapse() {
                 const interval = parseInt(document.getElementById("timelapse-interval").value);
                 fetch("/start_timelapse", {
@@ -711,9 +758,27 @@ def index():
     </body>
     </html>
     ''', options_html=options_html,
+         camera_options_html=camera_options_html,
          html_int_controls=html_int_controls,
          html_other_controls=html_other_controls)
 
+
+# NEW: Route to switch cameras
+@app.route('/set_camera', methods=['POST'])
+def set_camera():
+    """Switch active camera device"""
+    global available_cameras
+    data = request.get_json() or {}
+    device = data.get('device')
+    if not device:
+        return jsonify({"success": False, "message": "Missing device"}), 400
+
+    # refresh camera list to keep names up to date
+    available_cameras = discover_cameras()
+
+    if not initialize_camera(device):
+        return jsonify({"success": False, "message": "Failed to initialize camera"}), 500
+    return jsonify({"success": True})
 
 # NEW: Route to set individual control values
 @app.route('/set_control', methods=['POST'])
