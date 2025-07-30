@@ -15,7 +15,7 @@ app = Flask(__name__)
 camera = None
 
 class ThreadSafeCameraController:
-    def __init__(self, device="/dev/video1"):
+    def __init__(self, device="/dev/video0"):
         self.device_path = device
         self.cap = None
         self.frame_queue = queue.Queue(maxsize=2)
