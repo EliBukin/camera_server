@@ -32,6 +32,7 @@ class ThreadSafeCameraController:
         # Start streaming
         self.start_streaming()
         self.timelapse = TimeLapseCapturer(self)
+        self.recorder = VideoRecorder(self)
 
     def start_streaming(self):
         if not self.streaming:
@@ -384,6 +385,10 @@ class ThreadSafeCameraController:
 
     def cleanup(self):
         self.stop_streaming()
+        if hasattr(self, "timelapse"):
+            self.timelapse.stop()
+        if hasattr(self, "recorder"):
+            self.recorder.stop()
         with self.camera_lock:
             if self.cap:
                 self.cap.release()
@@ -420,6 +425,49 @@ class TimeLapseCapturer:
                 print(f"[TimeLapse] Captured: {filename}")
                 count += 1
             time.sleep(self.interval)
+
+class VideoRecorder:
+    def __init__(self, camera, output_dir="videos"):
+        self.camera = camera
+        self.output_dir = output_dir
+        self.recording = False
+        self.thread = None
+        self.writer = None
+        self.output_file = None
+        os.makedirs(self.output_dir, exist_ok=True)
+
+    def start(self, filename=None, fps=15):
+        if self.recording:
+            return
+        if filename is None:
+            timestamp = time.strftime("%Y%m%d_%H%M%S")
+            filename = os.path.join(self.output_dir, f"record_{timestamp}.avi")
+        w, h = self.camera.get_current_resolution()
+        fourcc = cv2.VideoWriter_fourcc(*"MJPG")
+        with self.camera.camera_lock:
+            self.writer = cv2.VideoWriter(filename, fourcc, fps, (w, h))
+        self.output_file = filename
+        self.recording = True
+        self.thread = threading.Thread(target=self.record_loop, daemon=True)
+        self.thread.start()
+
+    def stop(self):
+        self.recording = False
+        if self.thread:
+            self.thread.join()
+        if self.writer:
+            self.writer.release()
+            self.writer = None
+        return self.output_file
+
+    def record_loop(self):
+        while self.recording:
+            with self.camera.camera_lock:
+                ret, frame = self.camera.cap.read()
+            if ret and frame is not None and self.writer:
+                self.writer.write(frame)
+            else:
+                time.sleep(0.05)
 
 # Initialize camera
 def initialize_camera():
@@ -583,9 +631,13 @@ def index():
                         <button onclick="startTimelapse()">Start Timelapse</button>
                         <button onclick="stopTimelapse()">Stop Timelapse</button>
                     </div>
+                    <div class="control-group" style="display: flex; gap: 10px; margin-top: 10px;">
+                        <button onclick="startRecording()">Start Recording</button>
+                        <button onclick="stopRecording()">Stop Recording</button>
+                    </div>
 
                 </div>
-            </div>           
+            </div>
         </div>
 
         {% raw %}
@@ -632,6 +684,21 @@ def index():
             }
             function stopTimelapse() {
                 fetch("/stop_timelapse", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" }
+                }).then(resp => resp.json())
+                  .then(data => alert(data.message));
+            }
+
+            function startRecording() {
+                fetch("/start_recording", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" }
+                }).then(resp => resp.json())
+                  .then(data => alert(data.message));
+            }
+            function stopRecording() {
+                fetch("/stop_recording", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" }
                 }).then(resp => resp.json())
@@ -701,6 +768,30 @@ def stop_timelapse():
     try:
         camera.timelapse.stop()
         return jsonify({"success": True, "message": "Timelapse stopped."})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route('/start_recording', methods=['POST'])
+def start_recording():
+    if not camera:
+        return jsonify({"success": False, "message": "Camera not initialized"}), 500
+
+    data = request.get_json(silent=True) or {}
+    filename = data.get("filename")
+    try:
+        camera.recorder.start(filename)
+        return jsonify({"success": True, "message": "Recording started."})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route('/stop_recording', methods=['POST'])
+def stop_recording():
+    if not camera:
+        return jsonify({"success": False, "message": "Camera not initialized"}), 500
+
+    try:
+        output = camera.recorder.stop()
+        return jsonify({"success": True, "message": f"Recording saved to {output}"})
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
 
@@ -858,6 +949,8 @@ def cleanup_handler(signum, frame):
     if camera:
         if hasattr(camera, "timelapse"):
             camera.timelapse.stop()
+        if hasattr(camera, "recorder"):
+            camera.recorder.stop()
         camera.cleanup()
     sys.exit(0)
 
