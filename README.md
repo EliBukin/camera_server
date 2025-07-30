@@ -101,6 +101,12 @@ def __init__(self, device="/dev/video0"):  # or your device path
 3. Images are saved to `./timelapse/` directory
 4. Click "Stop Timelapse" to end capture
 
+### Video Recording
+
+1. Click "Start Recording" to begin capturing video
+2. The recorded file is saved under `./videos/` directory
+3. Click "Stop Recording" to end capture
+
 ## 📡 API Endpoints
 
 ### Web Interface
@@ -139,6 +145,8 @@ def __init__(self, device="/dev/video0"):  # or your device path
   ```
 
 - `POST /stop_timelapse` - Stop timelapse capture
+- `POST /start_recording` - Begin video recording
+- `POST /stop_recording` - Stop video recording
 
 ## ⚙️ Configuration
 
