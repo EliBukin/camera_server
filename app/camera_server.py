@@ -33,7 +33,13 @@ def discover_cameras():
             while i < len(lines) and lines[i].startswith("\t"):
                 dev = lines[i].strip()
                 if dev.startswith("/dev/video"):
-                    cameras.append((name, dev))
+                    # Verify we can actually open the device before adding it
+                    cap = cv2.VideoCapture(dev)
+                    if cap.isOpened():
+                        cameras.append((name, dev))
+                        cap.release()
+                    else:
+                        print(f"Skipping {dev} - unable to open")
                     break
                 i += 1
         else:
