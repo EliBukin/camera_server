@@ -1,8 +1,12 @@
 import signal
 import sys
 
-from . import backend
-from .gui import app
+try:
+    from . import backend  # type: ignore
+    from .gui import app  # type: ignore
+except ImportError:  # Fallback when run as a script
+    import backend  # type: ignore
+    from gui import app  # type: ignore
 
 signal.signal(signal.SIGINT, backend.cleanup_handler)
 signal.signal(signal.SIGTERM, backend.cleanup_handler)
