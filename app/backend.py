@@ -42,6 +42,10 @@ camera = None
 available_cameras = []
 config = load_config()
 
+# Ensure frontend routes are registered even when this module is imported by
+# external WSGI servers or the Flask CLI.
+import frontend  # noqa: E402
+
 def discover_cameras():
     """Return a list of tuples (name, device) for detected cameras"""
     cmd = "v4l2-ctl --list-devices"
@@ -839,7 +843,6 @@ signal.signal(signal.SIGINT, cleanup_handler)
 signal.signal(signal.SIGTERM, cleanup_handler)
 
 if __name__ == '__main__':
-    import frontend  # register frontend routes
     print("🚀 Camera server starting at http://0.0.0.0:5000")
     if not initialize_camera():
         print("Camera failed to initialize.")
