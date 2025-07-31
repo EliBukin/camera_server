@@ -612,11 +612,19 @@ def index():
                 gap: 30px;
                 align-items: flex-start;
             }
-            .video-container img {
+            .video-container {
                 width: 800px;
                 height: 600px;
                 background: black;
                 border: 1px solid #ccc;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+            .video-container img {
+                width: 100%;
+                height: 100%;
+                object-fit: contain;
             }
             .controls-wrapper {
                 display: flex;
@@ -713,20 +721,6 @@ def index():
                 }
             }
 
-            function updatePreviewSize(w, h) {
-                const img = document.getElementById("videoStream");
-                if (!img) return;
-                const maxDim = 800;
-                const aspect = w / h;
-                if (aspect >= 1) {
-                    img.style.width = maxDim + "px";
-                    img.style.height = Math.round(maxDim / aspect) + "px";
-                } else {
-                    img.style.height = maxDim + "px";
-                    img.style.width = Math.round(maxDim * aspect) + "px";
-                }
-            }
-
             function changeResolution() {
                 const [fmt, w, h] = document.getElementById("resolution").value.split(",");
                 fetch("/set_resolution", {
@@ -735,7 +729,6 @@ def index():
                     body: JSON.stringify({ width: parseInt(w), height: parseInt(h), format: fmt })
                 }).then(() => {
                     document.getElementById("videoStream").src = "/video_feed?t=" + new Date().getTime();
-                    updatePreviewSize(parseInt(w), parseInt(h));
                 });
             }
 
@@ -780,10 +773,6 @@ def index():
                   .then(data => alert(data.message));
             }
 
-            window.addEventListener('load', () => {
-                const [fmt, w, h] = document.getElementById("resolution").value.split(',');
-                updatePreviewSize(parseInt(w), parseInt(h));
-            });
 
 
         </script>
