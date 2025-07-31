@@ -11,9 +11,36 @@ import json
 import re
 import os
 
+CONFIG_FILE = "config.json"
+
+def load_config():
+    cfg = {
+        "image_output": "timelapse",
+        "video_output": "videos",
+    }
+    if os.path.exists(CONFIG_FILE):
+        try:
+            with open(CONFIG_FILE, "r") as f:
+                data = json.load(f)
+                if isinstance(data, dict):
+                    cfg.update({k: v for k, v in data.items() if k in cfg})
+        except Exception as e:
+            print(f"Failed to read config: {e}")
+    os.makedirs(cfg["image_output"], exist_ok=True)
+    os.makedirs(cfg["video_output"], exist_ok=True)
+    return cfg
+
+def persist_config(cfg):
+    try:
+        with open(CONFIG_FILE, "w") as f:
+            json.dump(cfg, f, indent=2)
+    except Exception as e:
+        print(f"Failed to save config: {e}")
+
 app = Flask(__name__)
 camera = None
 available_cameras = []
+config = load_config()
 
 def discover_cameras():
     """Return a list of tuples (name, device) for detected cameras"""
@@ -54,7 +81,7 @@ def discover_cameras():
     return cameras
 
 class ThreadSafeCameraController:
-    def __init__(self, device="/dev/video0"):
+    def __init__(self, device="/dev/video0", timelapse_dir="timelapse", video_dir="videos"):
         self.device_path = device
         self.cap = None
         self.frame_queue = queue.Queue(maxsize=2)
@@ -70,8 +97,8 @@ class ThreadSafeCameraController:
 
         # Start streaming
         self.start_streaming()
-        self.timelapse = TimeLapseCapturer(self)
-        self.recorder = VideoRecorder(self)
+        self.timelapse = TimeLapseCapturer(self, timelapse_dir)
+        self.recorder = VideoRecorder(self, video_dir)
 
     def start_streaming(self):
         if not self.streaming:
@@ -524,7 +551,11 @@ def initialize_camera(device=None):
         camera.cleanup()
 
     try:
-        camera = ThreadSafeCameraController(device)
+        camera = ThreadSafeCameraController(
+            device,
+            timelapse_dir=config.get("image_output", "timelapse"),
+            video_dir=config.get("video_output", "videos"),
+        )
         return True
     except Exception as e:
         print(f"Camera init failed: {e}")
@@ -694,6 +725,17 @@ def index():
                         <button onclick="startRecording()">Start Recording</button>
                         <button onclick="stopRecording()">Stop Recording</button>
                     </div>
+                    <div class="control-group">
+                        <label for="image-output">Image Output:</label>
+                        <input type="text" id="image-output" value="{{ config['image_output'] }}">
+                    </div>
+                    <div class="control-group">
+                        <label for="video-output">Video Output:</label>
+                        <input type="text" id="video-output" value="{{ config['video_output'] }}">
+                    </div>
+                    <div class="control-group" style="margin-top: 10px;">
+                        <button onclick="saveConfig()">Save Config</button>
+                    </div>
 
                 </div>
             </div>
@@ -773,6 +815,17 @@ def index():
                   .then(data => alert(data.message));
             }
 
+            function saveConfig() {
+                const img = document.getElementById("image-output").value;
+                const vid = document.getElementById("video-output").value;
+                fetch("/save_config", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ image_output: img, video_output: vid })
+                }).then(resp => resp.json())
+                  .then(() => alert("Config saved"));
+            }
+
 
 
         </script>
@@ -782,7 +835,8 @@ def index():
     ''', options_html=options_html,
          camera_options_html=camera_options_html,
          html_int_controls=html_int_controls,
-         html_other_controls=html_other_controls)
+         html_other_controls=html_other_controls,
+         config=config)
 
 
 # NEW: Route to switch cameras
@@ -1031,6 +1085,24 @@ def set_resolution():
     fmt = data.get("format", "MJPG")
     success, msg = camera.set_resolution(width, height, fmt)
     return jsonify({"success": success, "message": msg})
+
+@app.route('/save_config', methods=['POST'])
+def save_config_route():
+    global config
+    data = request.get_json() or {}
+    img = data.get("image_output")
+    vid = data.get("video_output")
+    if img:
+        config["image_output"] = img
+    if vid:
+        config["video_output"] = vid
+    os.makedirs(config["image_output"], exist_ok=True)
+    os.makedirs(config["video_output"], exist_ok=True)
+    persist_config(config)
+    if camera:
+        camera.timelapse.output_dir = config["image_output"]
+        camera.recorder.output_dir = config["video_output"]
+    return jsonify({"success": True})
 
 def cleanup_handler(signum, frame):
     if camera:
