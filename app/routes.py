@@ -1,36 +1,46 @@
 from flask import Blueprint, Response, request, jsonify, render_template
 import time
 
-from .camera import (
-    camera,
-    available_cameras,
-    discover_cameras,
-    initialize_camera,
-)
+# Import the camera module itself so we always reference the current
+# global objects. Importing the values directly would freeze them at
+# import time which causes the routes to see stale references when
+# the camera is initialised after the app is created.
+from . import camera as camera_module
+
+# Convenience helpers to access mutable globals
+def get_camera():
+    return camera_module.camera
+
+def get_available_cameras():
+    return camera_module.available_cameras
+
+discover_cameras = camera_module.discover_cameras
+initialize_camera = camera_module.initialize_camera
 
 bp = Blueprint('web', __name__)
 
 @bp.route('/')
 def index():
-    if not camera:
+    cam = get_camera()
+    if not cam:
         return "Camera not initialized", 500
 
-    w, h = camera.get_current_resolution()
+    w, h = cam.get_current_resolution()
     options_html = "\n".join(
         f'<option value="{fmt},{w},{h}">{fmt} - {w}x{h}</option>'
-        for fmt, w, h in camera.supported_resolutions
+        for fmt, w, h in cam.supported_resolutions
     )
 
     camera_options_html = "\n".join(
-        f'<option value="{dev}" {"selected" if dev == camera.device_path else ""}>{name}</option>'
-        for name, dev in available_cameras
+        f'<option value="{dev}" {"selected" if dev == cam.device_path else ""}>{name}</option>'
+        for name, dev in get_available_cameras()
     )
 
     # Split controls by type
     int_controls = []
     other_controls = []
 
-    for name, ctrl in camera.controls_info.items():
+    for name, ctrl in cam.controls_info.items():
         if ctrl['type'] == 'int':
             int_controls.append((name, ctrl))
         else:
@@ -89,14 +99,14 @@ def index():
 @bp.route('/set_camera', methods=['POST'])
 def set_camera():
     """Switch active camera device"""
-    global available_cameras
+    # Refresh the available cameras list so selection labels stay up to date
     data = request.get_json() or {}
     device = data.get('device')
     if not device:
         return jsonify({"success": False, "message": "Missing device"}), 400
 
     # refresh camera list to keep names up to date
-    available_cameras = discover_cameras()
+    camera_module.available_cameras = discover_cameras()
 
     if not initialize_camera(device):
         return jsonify({"success": False, "message": "Failed to initialize camera"}), 500
@@ -105,7 +115,8 @@ def set_camera():
 # NEW: Route to set individual control values
 @bp.route('/set_control', methods=['POST'])
 def set_control():
-    if not camera:
+    cam = get_camera()
+    if not cam:
         return jsonify({"success": False, "message": "Camera not initialized"}), 500
     
     data = request.get_json()
@@ -115,7 +126,7 @@ def set_control():
     if not control_name or value is None:
         return jsonify({"success": False, "message": "Missing control name or value"}), 400
     
-    success = camera.set_control_value(control_name, value)
+    success = cam.set_control_value(control_name, value)
     
     if success:
         return jsonify({"success": True, "message": f"Set {control_name} = {value}"})
@@ -125,59 +136,64 @@ def set_control():
 # NEW: Route to reset controls to stored defaults
 @bp.route('/reset_controls', methods=['POST'])
 def reset_controls():
-    if not camera:
+    cam = get_camera()
+    if not cam:
         return jsonify({"success": False, "message": "Camera not initialized"}), 500
     
     try:
-        camera.reset_to_stored_defaults()
+        cam.reset_to_stored_defaults()
         return jsonify({"success": True, "message": "Controls reset to stored defaults"})
     except Exception as e:
         return jsonify({"success": False, "message": f"Error resetting controls: {str(e)}"}), 500
 
 @bp.route('/start_timelapse', methods=['POST'])
 def start_timelapse():
-    if not camera:
+    cam = get_camera()
+    if not cam:
         return jsonify({"success": False, "message": "Camera not initialized"}), 500
 
     data = request.get_json()
     interval = data.get("interval", 5)
     try:
-        camera.timelapse.start(interval)
+        cam.timelapse.start(interval)
         return jsonify({"success": True, "message": f"Timelapse started with {interval}s interval."})
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
 
 @bp.route('/stop_timelapse', methods=['POST'])
 def stop_timelapse():
-    if not camera:
+    cam = get_camera()
+    if not cam:
         return jsonify({"success": False, "message": "Camera not initialized"}), 500
 
     try:
-        camera.timelapse.stop()
+        cam.timelapse.stop()
         return jsonify({"success": True, "message": "Timelapse stopped."})
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
 
 @bp.route('/start_recording', methods=['POST'])
 def start_recording():
-    if not camera:
+    cam = get_camera()
+    if not cam:
         return jsonify({"success": False, "message": "Camera not initialized"}), 500
 
     data = request.get_json(silent=True) or {}
     filename = data.get("filename")
     try:
-        camera.recorder.start(filename)
+        cam.recorder.start(filename)
         return jsonify({"success": True, "message": "Recording started."})
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
 
 @bp.route('/stop_recording', methods=['POST'])
 def stop_recording():
-    if not camera:
+    cam = get_camera()
+    if not cam:
         return jsonify({"success": False, "message": "Camera not initialized"}), 500
 
     try:
-        output = camera.recorder.stop()
+        output = cam.recorder.stop()
         return jsonify({"success": True, "message": f"Recording saved to {output}"})
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
@@ -185,18 +201,19 @@ def stop_recording():
 @bp.route('/camera_status')
 def camera_status():
     """Display current camera settings in HTML format"""
-    if not camera:
+    cam = get_camera()
+    if not cam:
         return "Camera not initialized", 500
     
     # Get current resolution
-    w, h = camera.get_current_resolution()
+    w, h = cam.get_current_resolution()
     
     # Generate HTML table for controls
     controls_html = ""
-    for name, ctrl in camera.controls_info.items():
-        stored_default = camera.stored_defaults.get(name, "N/A")
+    for name, ctrl in cam.controls_info.items():
+        stored_default = cam.stored_defaults.get(name, "N/A")
         # Show original hardware default (before override) vs calculated stored default
-        original_hw_default = camera.original_hardware_defaults.get(name, "N/A") if hasattr(camera, 'original_hardware_defaults') else "N/A"
+        original_hw_default = cam.original_hardware_defaults.get(name, "N/A") if hasattr(cam, 'original_hardware_defaults') else "N/A"
         controls_html += f"""
         <tr>
             <td><strong>{name}</strong></td>
@@ -212,7 +229,7 @@ def camera_status():
     
     # Generate resolution options
     resolution_list = ""
-    for fmt, res_w, res_h in camera.supported_resolutions:
+    for fmt, res_w, res_h in cam.supported_resolutions:
         current_marker = " ✓" if (res_w == w and res_h == h) else ""
         resolution_list += f"<li>{fmt} - {res_w}x{res_h}{current_marker}</li>"
     
@@ -227,25 +244,26 @@ def camera_status():
 @bp.route('/camera_status_json')
 def camera_status_json():
     """Return current camera settings as JSON"""
-    if not camera:
+    cam = get_camera()
+    if not cam:
         return jsonify({"error": "Camera not initialized"}), 500
     
     # Get current resolution
-    w, h = camera.get_current_resolution()
+    w, h = cam.get_current_resolution()
     
     status = {
-        "device": camera.device_path,
+        "device": cam.device_path,
         "current_resolution": {
             "width": w,
             "height": h
         },
         "supported_resolutions": [
-            {"format": fmt, "width": w, "height": h} 
-            for fmt, w, h in camera.supported_resolutions
+            {"format": fmt, "width": w, "height": h}
+            for fmt, w, h in cam.supported_resolutions
         ],
-        "controls": camera.controls_info,  # Contains current overridden defaults
-        "stored_defaults": camera.stored_defaults,  # Contains calculated defaults
-        "original_hardware_defaults": camera.original_hardware_defaults,  # Contains original broken defaults
+        "controls": cam.controls_info,  # Contains current overridden defaults
+        "stored_defaults": cam.stored_defaults,  # Contains calculated defaults
+        "original_hardware_defaults": cam.original_hardware_defaults,  # Contains original broken defaults
         "timestamp": time.time()
     }
     
@@ -255,10 +273,11 @@ def camera_status_json():
 def video_feed():
     def generate():
         while True:
-            if not camera:
+            cam = get_camera()
+            if not cam:
                 time.sleep(0.1)
                 continue
-            frame = camera.get_latest_frame()
+            frame = cam.get_latest_frame()
             if frame:
                 yield (b'--frame\r\nContent-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
             time.sleep(0.033)
@@ -267,12 +286,13 @@ def video_feed():
 
 @bp.route('/set_resolution', methods=['POST'])
 def set_resolution():
-    if not camera:
+    cam = get_camera()
+    if not cam:
         return jsonify({"message": "Camera not initialized"}), 500
     data = request.get_json()
     width = data.get("width", 640)
     height = data.get("height", 480)
     fmt = data.get("format", "MJPG")
-    success, msg = camera.set_resolution(width, height, fmt)
+    success, msg = cam.set_resolution(width, height, fmt)
     return jsonify({"success": success, "message": msg})
 
