@@ -55,7 +55,7 @@ pip3 install flask opencv-python
 ```bash
 git clone https://github.com/yourusername/usb-camera-server.git
 cd usb-camera-server
-chmod +x camera_server.py
+chmod +x app/main.py
 ```
 
 ### 4. Verify Camera Connection
@@ -74,7 +74,7 @@ v4l2-ctl --device=/dev/video1 --list-formats-ext
 
 1. **Start the server:**
    ```bash
-   python3 camera_server.py
+   python3 app/main.py
    ```
 
 2. **Access the web interface:**
