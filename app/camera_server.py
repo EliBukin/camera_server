@@ -612,11 +612,19 @@ def index():
                 gap: 30px;
                 align-items: flex-start;
             }
-            .video-container img {
+            .video-container {
                 width: 800px;
                 height: 600px;
                 background: black;
                 border: 1px solid #ccc;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+            .video-container img {
+                width: 100%;
+                height: 100%;
+                object-fit: contain;
             }
             .controls-wrapper {
                 display: flex;
@@ -764,6 +772,7 @@ def index():
                 }).then(resp => resp.json())
                   .then(data => alert(data.message));
             }
+
 
 
         </script>
