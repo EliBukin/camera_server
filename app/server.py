@@ -40,7 +40,7 @@ def initialize_camera(device=None):
         return False
 
 
-@app.route('/')
+@app.route("/")
 def index():
     if not camera:
         return "Camera not initialized", 500
@@ -59,7 +59,7 @@ def index():
     int_controls = []
     other_controls = []
     for name, ctrl in camera.controls_info.items():
-        if ctrl['type'] == 'int':
+        if ctrl["type"] == "int":
             int_controls.append((name, ctrl))
         else:
             other_controls.append((name, ctrl))
@@ -67,8 +67,8 @@ def index():
     def render_controls(control_list):
         html = ""
         for name, ctrl in control_list:
-            if ctrl['type'] == 'int':
-                html += f'''
+            if ctrl["type"] == "int":
+                html += f"""
                 <div class="control-group">
                     <label>{name}</label>
                     <input type="range" id="{name}" min="{ctrl['min']}" max="{ctrl['max']}"
@@ -76,10 +76,10 @@ def index():
                         oninput="updateControl('{name}', this.value)" />
                     <span id="{name}-value">{ctrl['current']}</span>
                 </div>
-                '''
-            elif ctrl['type'] == 'bool':
-                checked = "checked" if ctrl['current'] == 1 else ""
-                html += f'''
+                """
+            elif ctrl["type"] == "bool":
+                checked = "checked" if ctrl["current"] == 1 else ""
+                html += f"""
                 <div class="control-group">
                     <label>
                         <input type="checkbox" id="{name}" {checked}
@@ -87,27 +87,27 @@ def index():
                         {name}
                     </label>
                 </div>
-                '''
-            elif ctrl['type'] == 'menu':
+                """
+            elif ctrl["type"] == "menu":
                 options = "".join(
                     f'<option value="{i}" {"selected" if i == ctrl["current"] else ""}>Option {i}</option>'
-                    for i in range(ctrl['min'], ctrl['max'] + 1)
+                    for i in range(ctrl["min"], ctrl["max"] + 1)
                 )
-                html += f'''
+                html += f"""
                 <div class="control-group">
                     <label>{name}</label>
                     <select id="{name}" onchange="updateControl('{name}', this.value)">
                         {options}
                     </select>
                 </div>
-                '''
+                """
         return html
 
     html_int_controls = render_controls(int_controls)
     html_other_controls = render_controls(other_controls)
 
     return render_template(
-        'index.html',
+        "index.html",
         options_html=options_html,
         camera_options_html=camera_options_html,
         html_int_controls=html_int_controls,
@@ -116,21 +116,24 @@ def index():
     )
 
 
-@app.route('/set_camera', methods=['POST'])
+@app.route("/set_camera", methods=["POST"])
 def set_camera():
     global available_cameras
     data = request.get_json() or {}
-    device = data.get('device')
+    device = data.get("device")
     if not device:
         return jsonify({"success": False, "message": "Missing device"}), 400
 
     available_cameras = discover_cameras()
     if not initialize_camera(device):
-        return jsonify({"success": False, "message": "Failed to initialize camera"}), 500
+        return (
+            jsonify({"success": False, "message": "Failed to initialize camera"}),
+            500,
+        )
     return jsonify({"success": True})
 
 
-@app.route('/set_control', methods=['POST'])
+@app.route("/set_control", methods=["POST"])
 def set_control():
     if not camera:
         return jsonify({"success": False, "message": "Camera not initialized"}), 500
@@ -140,29 +143,42 @@ def set_control():
     value = data.get("value")
 
     if not control_name or value is None:
-        return jsonify({"success": False, "message": "Missing control name or value"}), 400
+        return (
+            jsonify({"success": False, "message": "Missing control name or value"}),
+            400,
+        )
 
     success = camera.set_control_value(control_name, value)
 
     if success:
         return jsonify({"success": True, "message": f"Set {control_name} = {value}"})
     else:
-        return jsonify({"success": False, "message": f"Failed to set {control_name}"}), 500
+        return (
+            jsonify({"success": False, "message": f"Failed to set {control_name}"}),
+            500,
+        )
 
 
-@app.route('/reset_controls', methods=['POST'])
+@app.route("/reset_controls", methods=["POST"])
 def reset_controls():
     if not camera:
         return jsonify({"success": False, "message": "Camera not initialized"}), 500
 
     try:
         camera.reset_to_stored_defaults()
-        return jsonify({"success": True, "message": "Controls reset to stored defaults"})
+        return jsonify(
+            {"success": True, "message": "Controls reset to stored defaults"}
+        )
     except Exception as e:
-        return jsonify({"success": False, "message": f"Error resetting controls: {str(e)}"}), 500
+        return (
+            jsonify(
+                {"success": False, "message": f"Error resetting controls: {str(e)}"}
+            ),
+            500,
+        )
 
 
-@app.route('/start_timelapse', methods=['POST'])
+@app.route("/start_timelapse", methods=["POST"])
 def start_timelapse():
     if not camera:
         return jsonify({"success": False, "message": "Camera not initialized"}), 500
@@ -171,12 +187,17 @@ def start_timelapse():
     interval = data.get("interval", 5)
     try:
         camera.timelapse.start(interval)
-        return jsonify({"success": True, "message": f"Timelapse started with {interval}s interval."})
+        return jsonify(
+            {
+                "success": True,
+                "message": f"Timelapse started with {interval}s interval.",
+            }
+        )
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
 
 
-@app.route('/stop_timelapse', methods=['POST'])
+@app.route("/stop_timelapse", methods=["POST"])
 def stop_timelapse():
     if not camera:
         return jsonify({"success": False, "message": "Camera not initialized"}), 500
@@ -188,7 +209,7 @@ def stop_timelapse():
         return jsonify({"success": False, "message": str(e)}), 500
 
 
-@app.route('/start_recording', methods=['POST'])
+@app.route("/start_recording", methods=["POST"])
 def start_recording():
     if not camera:
         return jsonify({"success": False, "message": "Camera not initialized"}), 500
@@ -202,7 +223,7 @@ def start_recording():
         return jsonify({"success": False, "message": str(e)}), 500
 
 
-@app.route('/stop_recording', methods=['POST'])
+@app.route("/stop_recording", methods=["POST"])
 def stop_recording():
     if not camera:
         return jsonify({"success": False, "message": "Camera not initialized"}), 500
@@ -214,7 +235,7 @@ def stop_recording():
         return jsonify({"success": False, "message": str(e)}), 500
 
 
-@app.route('/camera_status')
+@app.route("/camera_status")
 def camera_status():
     if not camera:
         return "Camera not initialized", 500
@@ -223,7 +244,11 @@ def camera_status():
     controls_html = ""
     for name, ctrl in camera.controls_info.items():
         stored_default = camera.stored_defaults.get(name, "N/A")
-        original_hw_default = camera.original_hardware_defaults.get(name, "N/A") if hasattr(camera, 'original_hardware_defaults') else "N/A"
+        original_hw_default = (
+            camera.original_hardware_defaults.get(name, "N/A")
+            if hasattr(camera, "original_hardware_defaults")
+            else "N/A"
+        )
         controls_html += f"""
         <tr>
             <td><strong>{name}</strong></td>
@@ -243,14 +268,14 @@ def camera_status():
         resolution_list += f"<li>{fmt} - {res_w}x{res_h}{current_marker}</li>"
 
     return render_template(
-        'status.html',
+        "status.html",
         current_resolution=f"{w}x{h}",
         resolution_list=resolution_list,
         controls_html=controls_html,
     )
 
 
-@app.route('/camera_status_json')
+@app.route("/camera_status_json")
 def camera_status_json():
     if not camera:
         return jsonify({"error": "Camera not initialized"}), 500
@@ -260,7 +285,8 @@ def camera_status_json():
         "device": camera.device_path,
         "current_resolution": {"width": w, "height": h},
         "supported_resolutions": [
-            {"format": fmt, "width": w, "height": h} for fmt, w, h in camera.supported_resolutions
+            {"format": fmt, "width": w, "height": h}
+            for fmt, w, h in camera.supported_resolutions
         ],
         "controls": camera.controls_info,
         "stored_defaults": camera.stored_defaults,
@@ -270,7 +296,7 @@ def camera_status_json():
     return jsonify(status)
 
 
-@app.route('/video_feed')
+@app.route("/video_feed")
 def video_feed():
     def generate():
         while True:
@@ -279,13 +305,13 @@ def video_feed():
                 continue
             frame = camera.get_latest_frame()
             if frame:
-                yield (b'--frame\r\nContent-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+                yield (b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + frame + b"\r\n")
             time.sleep(0.033)
 
-    return Response(generate(), mimetype='multipart/x-mixed-replace; boundary=frame')
+    return Response(generate(), mimetype="multipart/x-mixed-replace; boundary=frame")
 
 
-@app.route('/set_resolution', methods=['POST'])
+@app.route("/set_resolution", methods=["POST"])
 def set_resolution():
     if not camera:
         return jsonify({"message": "Camera not initialized"}), 500
@@ -297,7 +323,22 @@ def set_resolution():
     return jsonify({"success": success, "message": msg})
 
 
-@app.route('/save_config', methods=['POST'])
+@app.route("/capture_photo", methods=["POST"])
+def capture_photo_route():
+    if not camera:
+        return jsonify({"success": False, "message": "Camera not initialized"}), 500
+    data = request.get_json() or {}
+    path = data.get("path")
+    if not path:
+        return jsonify({"success": False, "message": "Missing path"}), 400
+    try:
+        output = camera.capture_photo(path)
+        return jsonify({"success": True, "message": f"Captured {output}"})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@app.route("/save_config", methods=["POST"])
 def save_config_route():
     global config
     data = request.get_json() or {}
@@ -329,9 +370,9 @@ def cleanup_handler(signum, frame):
 signal.signal(signal.SIGINT, cleanup_handler)
 signal.signal(signal.SIGTERM, cleanup_handler)
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     print("🚀 Camera server starting at http://0.0.0.0:5000")
     if not initialize_camera():
         print("Camera failed to initialize.")
         sys.exit(1)
-    app.run(host='0.0.0.0', port=5000, threaded=True)
+    app.run(host="0.0.0.0", port=5000, threaded=True)
