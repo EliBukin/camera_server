@@ -4,11 +4,12 @@ import time
 import threading
 
 try:
-    # When executed as part of the package
+    # When imported via the ``app`` package (e.g. ``python -m app.app``)
     from ..utils.config import load_config
-except Exception:  # pragma: no cover - fallback for direct execution
-    # Fallback if the package layout isn't available
-    from app.utils.config import load_config
+except (ImportError, ValueError):  # pragma: no cover - fallback for direct execution
+    # When executed directly with ``python app/app.py`` the ``camera`` package
+    # is top-level, so we import from the sibling ``utils`` package instead.
+    from utils.config import load_config
 
 class TimeLapseCapturer:
     def __init__(self, camera, output_dir="timelapse"):

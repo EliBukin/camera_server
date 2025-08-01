@@ -13,7 +13,9 @@ import os
 # the import paths when no parent package is detected.
 if __package__ is None or __package__ == "":
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    sys.path.insert(0, os.path.abspath(os.path.join(script_dir, "..")))
+    # Make the "utils" and "camera" packages importable when executed directly
+    # as ``python app/app.py`` by prepending the ``app`` directory to ``sys.path``.
+    sys.path.insert(0, script_dir)
     from utils.config import load_config, persist_config
     from camera.controller import ThreadSafeCameraController
 else:
