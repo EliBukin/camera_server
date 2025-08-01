@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Camera Stream</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <h2>USB Camera Stream</h2>
+    <div class="main-controls">
+        <label>Camera:</label>
+        <select id="camera-select" onchange="changeCamera()">
+            {{ camera_options_html|safe }}
+        </select>
+        <label>Resolution:</label>
+        <select id="resolution" onchange="changeResolution()">
+            {{ options_html|safe }}
+        </select>
+        <button class="reset-button" onclick="resetControls()">Reset to Defaults</button>
+        <a href="/camera_status" target="_blank" class="status-link">View Camera Status</a>
+    </div>
+
+    <div class="flex-container">
+        <div class="video-container">
+            <img id="videoStream" src="/video_feed?t=0">
+        </div>
+        <div class="controls-wrapper">
+            <div class="column">
+                {{ html_int_controls|safe }}
+            </div>
+            <div class="column">
+                {{ html_other_controls|safe }}
+            </div>
+            <div class="column">
+                <div class="control-group">
+                    <label for="timelapse-interval">Interval (sec):</label>
+                    <input type="number" id="timelapse-interval" value="5" min="1">
+                </div>
+                <div class="control-group" style="display: flex; gap: 10px;">
+                    <button onclick="startTimelapse()">Start Timelapse</button>
+                    <button onclick="stopTimelapse()">Stop Timelapse</button>
+                </div>
+                <div class="control-group" style="display: flex; gap: 10px;margin-top: 10px;">
+                    <button onclick="startRecording()">Start Recording</button>
+                    <button onclick="stopRecording()">Stop Recording</button>
+                </div>
+                <div class="control-group">
+                    <label for="image-output">Image Output:</label>
+                    <input type="text" id="image-output" value="{{ config['image_output'] }}">
+                </div>
+                <div class="control-group">
+                    <label for="video-output">Video Output:</label>
+                    <input type="text" id="video-output" value="{{ config['video_output'] }}">
+                </div>
+                <div class="control-group" style="margin-top: 10px;">
+                    <button onclick="saveConfig()">Save Config</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function updateControl(controlName, value) {
+            fetch("/set_control", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ control: controlName, value: parseInt(value) })
+            }).then(resp => resp.json()).then(data => {
+                const valueSpan = document.getElementById(controlName + "-value");
+                if (valueSpan) valueSpan.textContent = value;
+            });
+        }
+
+        function resetControls() {
+            if (confirm("Reset all controls to stored defaults and reinitialize camera?")) {
+                fetch("/reset_controls", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" }
+                }).then(() => location.reload());
+            }
+        }
+
+        function changeResolution() {
+            const [fmt, w, h] = document.getElementById("resolution").value.split(",");
+            fetch("/set_resolution", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ width: parseInt(w), height: parseInt(h), format: fmt })
+            }).then(() => {
+                document.getElementById("videoStream").src = "/video_feed?t=" + new Date().getTime();
+            });
+        }
+
+        function changeCamera() {
+            const dev = document.getElementById("camera-select").value;
+            fetch("/set_camera", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ device: dev })
+            }).then(() => location.reload());
+        }
+
+        function startTimelapse() {
+            const interval = parseInt(document.getElementById("timelapse-interval").value);
+            fetch("/start_timelapse", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ interval: interval })
+            }).then(resp => resp.json())
+              .then(data => alert(data.message));
+        }
+        function stopTimelapse() {
+            fetch("/stop_timelapse", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" }
+            }).then(resp => resp.json())
+              .then(data => alert(data.message));
+        }
+
+        function startRecording() {
+            fetch("/start_recording", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" }
+            }).then(resp => resp.json())
+              .then(data => alert(data.message));
+        }
+        function stopRecording() {
+            fetch("/stop_recording", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" }
+            }).then(resp => resp.json())
+              .then(data => alert(data.message));
+        }
+
+        function saveConfig() {
+            const img = document.getElementById("image-output").value;
+            const vid = document.getElementById("video-output").value;
+            fetch("/save_config", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ image_output: img, video_output: vid })
+            }).then(resp => resp.json())
+              .then(() => alert("Config saved"));
+        }
+    </script>
+</body>
+</html>
