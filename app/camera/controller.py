@@ -20,6 +20,9 @@ class ThreadSafeCameraController:
         self.settings_lock = threading.Lock()
         self.stored_defaults = {}  # NEW: Store calculated defaults
         self.original_hardware_defaults = {}  # NEW: Store original hardware defaults before override
+        self.current_width = 0
+        self.current_height = 0
+        self.current_format = "MJPG"
 
         # Initialize camera (this now includes setting defaults)
         self._initialize_camera()
@@ -109,6 +112,9 @@ class ThreadSafeCameraController:
 
     def _set_camera_properties(self, width, height, fmt='MJPG'):
         """Set camera properties - only called after resolution detection"""
+        self.current_width = width
+        self.current_height = height
+        self.current_format = fmt
         self.cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*fmt))
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
