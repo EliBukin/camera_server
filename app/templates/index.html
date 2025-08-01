@@ -45,6 +45,13 @@
                     <button onclick="stopRecording()">Stop Recording</button>
                 </div>
                 <div class="control-group">
+                    <label for="capture-path">Photo Path:</label>
+                    <input type="text" id="capture-path" value="{{ config['image_output'] }}/capture.jpg">
+                </div>
+                <div class="control-group">
+                    <button onclick="capturePhoto()">Capture Photo</button>
+                </div>
+                <div class="control-group">
                     <label for="image-output">Image Output:</label>
                     <input type="text" id="image-output" value="{{ config['image_output'] }}">
                 </div>
@@ -128,6 +135,16 @@
             fetch("/stop_recording", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" }
+            }).then(resp => resp.json())
+              .then(data => alert(data.message));
+        }
+
+        function capturePhoto() {
+            const path = document.getElementById("capture-path").value;
+            fetch("/capture_photo", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ path: path })
             }).then(resp => resp.json())
               .then(data => alert(data.message));
         }
