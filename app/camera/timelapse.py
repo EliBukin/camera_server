@@ -1,7 +1,5 @@
 import os
-import cv2
-import time
-import threading
+import subprocess
 
 try:
     # When imported via the ``app`` package (e.g. ``python -m app.app``)
@@ -17,7 +15,7 @@ class TimeLapseCapturer:
         self.output_dir = output_dir
         self.interval = 5
         self.running = False
-        self.thread = None
+        self.process = None
         self.prev_resolution = None
         self.prev_format = None
         self.prev_controls = None
@@ -50,13 +48,17 @@ class TimeLapseCapturer:
                 self.camera.set_control_value(ctrl, value)
 
             self.running = True
-            self.thread = threading.Thread(target=self.capture_loop, daemon=True)
-            self.thread.start()
+            self._start_ffmpeg_capture(w, h, fmt)
 
     def stop(self):
         self.running = False
-        if self.thread:
-            self.thread.join()
+        if self.process:
+            self.process.terminate()
+            try:
+                self.process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                self.process.kill()
+            self.process = None
         # Restore previous settings after timelapse ends
         if self.prev_resolution:
             w, h = self.prev_resolution
@@ -65,15 +67,27 @@ class TimeLapseCapturer:
             for ctrl, value in self.prev_controls.items():
                 self.camera.set_control_value(ctrl, value)
 
-    def capture_loop(self):
-        count = 0
-        while self.running:
-            with self.camera.camera_lock:
-                ret, frame = self.camera.cap.read()
-            if ret and frame is not None:
-                filename = os.path.join(self.output_dir, f"frame_{count:05d}.jpg")
-                cv2.imwrite(filename, frame)
-                print(f"[TimeLapse] Captured: {filename}")
-                count += 1
-            time.sleep(self.interval)
+
+    def _start_ffmpeg_capture(self, width, height, fmt):
+        device = self.camera.device_path
+        output = os.path.join(self.output_dir, "frame_%05d.jpg")
+        fps_filter = f"fps=1/{self.interval}"
+        cmd = [
+            "ffmpeg",
+            "-y",
+            "-f",
+            "v4l2",
+            "-video_size",
+            f"{width}x{height}",
+            "-input_format",
+            fmt,
+            "-i",
+            device,
+            "-vf",
+            fps_filter,
+            output,
+        ]
+        self.process = subprocess.Popen(
+            cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+        )
 
