@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Camera Stream</title>
+    <style>
+        body { font-family: sans-serif; margin: 10px; }
+        .flex-container {
+            display: flex;
+            gap: 30px;
+            align-items: flex-start;
+        }
+        .video-container {
+            width: 800px;
+            height: 600px;
+            background: black;
+            border: 1px solid #ccc;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .video-container img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+        .controls-wrapper {
+            display: flex;
+            flex-direction: row;
+            gap: 20px;
+            flex-wrap: nowrap;
+        }
+        .column {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .control-group {
+            font-size: 14px;
+        }
+        .control-group input[type="range"],
+        .control-group select {
+            width: 100%;
+        }
+        .main-controls {
+            margin: 15px 0;
+        }
+        .main-controls button, .main-controls select {
+            margin-right: 10px;
+            padding: 6px 12px;
+        }
+    </style>
+</head>
+<body>
+    <h2>USB Camera Stream</h2>
+    <div class="main-controls">
+        <label>Camera:</label>
+        <select id="camera-select" onchange="changeCamera()">
+            {{ camera_options_html|safe }}
+        </select>
+        <label>Resolution:</label>
+        <select id="resolution" onchange="changeResolution()">
+            {{ options_html|safe }}
+        </select>
+        <button class="reset-button" onclick="resetControls()">Reset to Defaults</button>
+        <a href="/camera_status" target="_blank" class="status-link">View Camera Status</a>
+    </div>
+
+    <div class="flex-container">
+        <div class="video-container">
+            <img id="videoStream" src="/video_feed?t=0">
+        </div>
+        <div class="controls-wrapper">
+            <div class="column">
+                {{ html_int_controls|safe }}
+            </div>
+            <div class="column">
+                {{ html_other_controls|safe }}
+            </div>
+            <div class="column">
+                <div class="control-group">
+                    <label for="timelapse-interval">Interval (sec):</label>
+                    <input type="number" id="timelapse-interval" value="5" min="1">
+                </div>
+                <div class="control-group" style="display: flex; gap: 10px;">
+                    <button onclick="startTimelapse()">Start Timelapse</button>
+                    <button onclick="stopTimelapse()">Stop Timelapse</button>
+                </div>
+                <div class="control-group" style="display: flex; gap: 10px; margin-top: 10px;">
+                    <button onclick="startRecording()">Start Recording</button>
+                    <button onclick="stopRecording()">Stop Recording</button>
+                </div>
+                <div class="control-group">
+                    <label for="image-output">Image Output:</label>
+                    <input type="text" id="image-output" value="{{ config['image_output'] }}">
+                </div>
+                <div class="control-group">
+                    <label for="video-output">Video Output:</label>
+                    <input type="text" id="video-output" value="{{ config['video_output'] }}">
+                </div>
+                <div class="control-group" style="margin-top: 10px;">
+                    <button onclick="saveConfig()">Save Config</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='main.js') }}"></script>
+</body>
+</html>
+
