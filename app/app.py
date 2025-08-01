@@ -365,6 +365,11 @@ def save_config_route():
         config["image_output"] = img
     if vid:
         config["video_output"] = vid
+    if camera:
+        config["controls"] = camera.get_all_current_values()
+        w, h = camera.get_current_resolution()
+        fmt = getattr(camera, "current_format", "MJPG")
+        config["resolution"] = {"width": w, "height": h, "format": fmt}
     os.makedirs(config["image_output"], exist_ok=True)
     os.makedirs(config["video_output"], exist_ok=True)
     persist_config(config)

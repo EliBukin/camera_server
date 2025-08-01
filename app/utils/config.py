@@ -7,6 +7,8 @@ def load_config():
     cfg = {
         "image_output": "timelapse",
         "video_output": "videos",
+        "controls": {},
+        "resolution": {"width": 640, "height": 480, "format": "MJPG"},
     }
     if os.path.exists(CONFIG_FILE):
         try:
