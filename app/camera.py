@@ -48,7 +48,9 @@ def discover_cameras():
 
 
 class ThreadSafeCameraController:
-    def __init__(self, device="/dev/video0", timelapse_dir="timelapse", video_dir="videos"):
+    def __init__(
+        self, device="/dev/video0", timelapse_dir="timelapse", video_dir="videos"
+    ):
         self.device_path = device
         self.cap = None
         self.frame_queue = queue.Queue(maxsize=2)
@@ -67,7 +69,9 @@ class ThreadSafeCameraController:
     def start_streaming(self):
         if not self.streaming:
             self.streaming = True
-            self.capture_thread = threading.Thread(target=self._capture_loop, daemon=True)
+            self.capture_thread = threading.Thread(
+                target=self._capture_loop, daemon=True
+            )
             self.capture_thread.start()
 
     def stop_streaming(self):
@@ -84,7 +88,9 @@ class ThreadSafeCameraController:
                     continue
                 ret, frame = self.cap.read()
             if ret and frame is not None:
-                ret_encode, jpeg = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 70])
+                ret_encode, jpeg = cv2.imencode(
+                    ".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 70]
+                )
                 if ret_encode:
                     try:
                         self.frame_queue.put(jpeg.tobytes(), block=False)
@@ -116,7 +122,9 @@ class ThreadSafeCameraController:
 
     def _get_supported_resolutions(self):
         cmd = f"v4l2-ctl --device={self.device_path} --list-formats-ext"
-        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=10)
+        result = subprocess.run(
+            cmd, shell=True, capture_output=True, text=True, timeout=10
+        )
         if result.returncode != 0:
             raise RuntimeError(f"v4l2-ctl command failed: {result.stderr}")
 
@@ -154,63 +162,63 @@ class ThreadSafeCameraController:
 
             controls = {}
             output = result.stdout
-            for line in output.strip().split('\n'):
-                if not line.strip() or 'Controls' in line or ':' not in line:
+            for line in output.strip().split("\n"):
+                if not line.strip() or "Controls" in line or ":" not in line:
                     continue
                 try:
-                    name_part = line.split(':')[0].strip()
+                    name_part = line.split(":")[0].strip()
                     name = name_part.split()[0]
-                    if '(int)' in line:
-                        ctrl_type = 'int'
-                    elif '(bool)' in line:
-                        ctrl_type = 'bool'
-                    elif '(menu)' in line:
-                        ctrl_type = 'menu'
+                    if "(int)" in line:
+                        ctrl_type = "int"
+                    elif "(bool)" in line:
+                        ctrl_type = "bool"
+                    elif "(menu)" in line:
+                        ctrl_type = "menu"
                     else:
                         continue
 
-                    default_match = re.search(r'default=(-?\d+)', line)
-                    current_match = re.search(r'value=(-?\d+)', line)
+                    default_match = re.search(r"default=(-?\d+)", line)
+                    current_match = re.search(r"value=(-?\d+)", line)
                     if not default_match or not current_match:
                         continue
                     default_val = int(default_match.group(1))
                     current_val = int(current_match.group(1))
 
-                    if ctrl_type == 'int':
-                        min_match = re.search(r'min=(-?\d+)', line)
-                        max_match = re.search(r'max=(-?\d+)', line)
-                        step_match = re.search(r'step=(-?\d+)', line)
+                    if ctrl_type == "int":
+                        min_match = re.search(r"min=(-?\d+)", line)
+                        max_match = re.search(r"max=(-?\d+)", line)
+                        step_match = re.search(r"step=(-?\d+)", line)
                         if not all([min_match, max_match, step_match]):
                             continue
                         controls[name] = {
-                            'type': ctrl_type,
-                            'min': int(min_match.group(1)),
-                            'max': int(max_match.group(1)),
-                            'step': int(step_match.group(1)),
-                            'default': default_val,
-                            'current': current_val,
+                            "type": ctrl_type,
+                            "min": int(min_match.group(1)),
+                            "max": int(max_match.group(1)),
+                            "step": int(step_match.group(1)),
+                            "default": default_val,
+                            "current": current_val,
                         }
-                    elif ctrl_type == 'bool':
+                    elif ctrl_type == "bool":
                         controls[name] = {
-                            'type': ctrl_type,
-                            'min': 0,
-                            'max': 1,
-                            'step': 1,
-                            'default': default_val,
-                            'current': current_val,
+                            "type": ctrl_type,
+                            "min": 0,
+                            "max": 1,
+                            "step": 1,
+                            "default": default_val,
+                            "current": current_val,
                         }
-                    elif ctrl_type == 'menu':
-                        min_match = re.search(r'min=(-?\d+)', line)
-                        max_match = re.search(r'max=(-?\d+)', line)
+                    elif ctrl_type == "menu":
+                        min_match = re.search(r"min=(-?\d+)", line)
+                        max_match = re.search(r"max=(-?\d+)", line)
                         if not all([min_match, max_match]):
                             continue
                         controls[name] = {
-                            'type': ctrl_type,
-                            'min': int(min_match.group(1)),
-                            'max': int(max_match.group(1)),
-                            'step': 1,
-                            'default': default_val,
-                            'current': current_val,
+                            "type": ctrl_type,
+                            "min": int(min_match.group(1)),
+                            "max": int(max_match.group(1)),
+                            "step": 1,
+                            "default": default_val,
+                            "current": current_val,
                         }
                 except Exception as e:
                     print(f"Error parsing control line '{line}': {e}")
@@ -224,31 +232,34 @@ class ThreadSafeCameraController:
     def calculate_default_values(self):
         defaults = {}
         for name, ctrl in self.controls_info.items():
-            if ctrl['type'] == 'int':
-                defaults[name] = (ctrl['min'] + ctrl['max']) // 2
-            elif ctrl['type'] == 'bool':
-                defaults[name] = ctrl['min']
-            elif ctrl['type'] == 'menu':
-                if name == 'auto_exposure' and ctrl['max'] >= 1:
+            if ctrl["type"] == "int":
+                defaults[name] = (ctrl["min"] + ctrl["max"]) // 2
+            elif ctrl["type"] == "bool":
+                defaults[name] = ctrl["min"]
+            elif ctrl["type"] == "menu":
+                if name == "auto_exposure" and ctrl["max"] >= 1:
                     defaults[name] = 1
                 else:
-                    defaults[name] = ctrl['min']
+                    defaults[name] = ctrl["min"]
         return defaults
 
     def set_control_value(self, control_name, value):
         try:
             if control_name in self.controls_info:
                 ctrl = self.controls_info[control_name]
-                if value < ctrl['min'] or value > ctrl['max']:
+                if value < ctrl["min"] or value > ctrl["max"]:
                     print(
-                        f"WARNING: {control_name} value {value} is out of bounds [{ctrl['min']}-{ctrl['max']}], skipping")
+                        f"WARNING: {control_name} value {value} is out of bounds [{ctrl['min']}-{ctrl['max']}], skipping"
+                    )
                     return False
             cmd = f"v4l2-ctl --device={self.device_path} --set-ctrl={control_name}={value}"
-            result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=5)
+            result = subprocess.run(
+                cmd, shell=True, capture_output=True, text=True, timeout=5
+            )
             if result.returncode == 0:
                 print(f"Set {control_name} = {value}")
                 if control_name in self.controls_info:
-                    self.controls_info[control_name]['current'] = value
+                    self.controls_info[control_name]["current"] = value
                 return True
             else:
                 error_msg = result.stderr.strip() or result.stdout.strip()
@@ -263,33 +274,42 @@ class ThreadSafeCameraController:
         default_values = self.calculate_default_values()
         failed_controls = []
         for control_name, value in default_values.items():
-            if control_name in ['auto_exposure', 'exposure_time_absolute']:
+            if control_name in ["auto_exposure", "exposure_time_absolute"]:
                 continue
             success = self.set_control_value(control_name, value)
             if not success:
                 failed_controls.append(control_name)
-        if 'auto_exposure' in default_values:
+        if "auto_exposure" in default_values:
             manual_mode = 1
-            success = self.set_control_value('auto_exposure', manual_mode)
+            success = self.set_control_value("auto_exposure", manual_mode)
             if success:
-                self.stored_defaults['auto_exposure'] = manual_mode
-                if 'exposure_time_absolute' in default_values:
-                    success = self.set_control_value('exposure_time_absolute', default_values['exposure_time_absolute'])
+                self.stored_defaults["auto_exposure"] = manual_mode
+                if "exposure_time_absolute" in default_values:
+                    success = self.set_control_value(
+                        "exposure_time_absolute",
+                        default_values["exposure_time_absolute"],
+                    )
                     if not success:
-                        failed_controls.append('exposure_time_absolute')
+                        failed_controls.append("exposure_time_absolute")
             else:
-                failed_controls.append('auto_exposure')
+                failed_controls.append("auto_exposure")
 
         self.controls_info = self.get_camera_controls()
         for control_name, calculated_default in default_values.items():
             if control_name in self.controls_info:
-                working_default = self.stored_defaults.get(control_name, calculated_default)
-                self.controls_info[control_name]['default'] = working_default
+                working_default = self.stored_defaults.get(
+                    control_name, calculated_default
+                )
+                self.controls_info[control_name]["default"] = working_default
 
         self.current_values = self.get_all_current_values()
         if failed_controls:
-            print(f"WARNING: Failed to set {len(failed_controls)} controls: {failed_controls}")
-        print(f"Applied defaults to {len(default_values) - len(failed_controls)} of {len(default_values)} controls")
+            print(
+                f"WARNING: Failed to set {len(failed_controls)} controls: {failed_controls}"
+            )
+        print(
+            f"Applied defaults to {len(default_values) - len(failed_controls)} of {len(default_values)} controls"
+        )
 
     def reset_to_stored_defaults(self):
         print("Resetting controls to stored defaults...")
@@ -310,13 +330,18 @@ class ThreadSafeCameraController:
                 raise RuntimeError(f"Could not open camera at {self.device_path}")
             self.supported_resolutions = self._get_supported_resolutions()
             self.controls_info = self.get_camera_controls()
-            if not hasattr(self, 'original_hardware_defaults') or not self.original_hardware_defaults:
+            if (
+                not hasattr(self, "original_hardware_defaults")
+                or not self.original_hardware_defaults
+            ):
                 self.original_hardware_defaults = {}
                 for name, ctrl in self.controls_info.items():
-                    self.original_hardware_defaults[name] = ctrl['default']
-                print(f"Original hardware defaults captured for {len(self.original_hardware_defaults)} controls")
+                    self.original_hardware_defaults[name] = ctrl["default"]
+                print(
+                    f"Original hardware defaults captured for {len(self.original_hardware_defaults)} controls"
+                )
             calculated_defaults = self.calculate_default_values()
-            if not hasattr(self, 'stored_defaults') or not self.stored_defaults:
+            if not hasattr(self, "stored_defaults") or not self.stored_defaults:
                 self.stored_defaults = calculated_defaults.copy()
                 print(f"Stored calculated defaults: {self.stored_defaults}")
             self.set_default_values()
@@ -324,7 +349,7 @@ class ThreadSafeCameraController:
             self._set_camera_properties(w, h, fmt)
 
     def get_all_current_values(self):
-        return {k: v['current'] for k, v in self.controls_info.items()}
+        return {k: v["current"] for k, v in self.controls_info.items()}
 
     def set_resolution(self, width, height, fmt="MJPG"):
         with self.camera_lock:
@@ -345,3 +370,17 @@ class ThreadSafeCameraController:
         with self.camera_lock:
             if self.cap:
                 self.cap.release()
+
+    def capture_photo(self, filepath):
+        """Capture a single image and save it to ``filepath``."""
+        dirpath = os.path.dirname(filepath)
+        if dirpath:
+            os.makedirs(dirpath, exist_ok=True)
+        with self.camera_lock:
+            if not self.cap or not self.cap.isOpened():
+                raise RuntimeError("Camera is not opened")
+            ret, frame = self.cap.read()
+        if not ret or frame is None:
+            raise RuntimeError("Failed to capture frame")
+        cv2.imwrite(filepath, frame)
+        return filepath
