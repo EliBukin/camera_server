@@ -9,8 +9,16 @@ import sys
 import re
 import os
 
-from .utils.config import load_config, persist_config
-from .camera.controller import ThreadSafeCameraController
+# Allow this module to be executed directly as a script by adjusting
+# the import paths when no parent package is detected.
+if __package__ is None or __package__ == "":
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    sys.path.insert(0, os.path.abspath(os.path.join(script_dir, "..")))
+    from utils.config import load_config, persist_config
+    from camera.controller import ThreadSafeCameraController
+else:
+    from .utils.config import load_config, persist_config
+    from .camera.controller import ThreadSafeCameraController
 
 app = Flask(__name__)
 camera = None
