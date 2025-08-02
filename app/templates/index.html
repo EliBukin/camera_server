@@ -3,70 +3,271 @@
 <head>
     <title>Camera Stream</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
-    <h2>USB Camera Stream</h2>
-    <div class="main-controls">
-        <label>Camera:</label>
-        <select id="camera-select" onchange="changeCamera()">
-            {{ camera_options_html|safe }}
-        </select>
-        <label>Resolution:</label>
-        <select id="resolution" onchange="changeResolution()">
-            {{ options_html|safe }}
-        </select>
-        <button class="reset-button" onclick="resetControls()">Reset to Defaults</button>
-        <a href="/camera_status" target="_blank" class="status-link">View Camera Status</a>
+    <div class="header">
+        <h1><i class="fas fa-camera"></i> Camera Control Center</h1>
     </div>
 
-    <div class="flex-container">
-        <div class="video-container">
-            <img id="videoStream" src="/video_feed?t=0">
+    <div class="main-container">
+        <!-- Video Section -->
+        <div class="video-section">
+            <div class="video-container">
+                <img id="videoStream" src="/video_feed?t=0" alt="Camera feed">
+                <div class="video-overlay">
+                    <span id="resolution-display">{{ current_resolution }}</span> • 
+                    <span id="status-display" class="status-indicator status-idle">
+                        <i class="fas fa-circle"></i> Ready
+                    </span>
+                </div>
+            </div>
+            
+            <div class="video-controls">
+                <div class="row w-100">
+                    <div class="col-md-3">
+                        <label>Camera Device</label>
+                        <select class="form-select" id="camera-select" onchange="changeCamera()">
+                            {{ camera_options_html|safe }}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label>Resolution</label>
+                        <select class="form-select" id="resolution" onchange="changeResolution()">
+                            {{ options_html|safe }}
+                        </select>
+                    </div>
+                    <div class="col-md-3 d-flex align-items-end">
+                        <button class="btn btn-secondary w-100" onclick="resetControls()">
+                            <i class="fas fa-undo"></i> Reset Settings
+                        </button>
+                    </div>
+                    <div class="col-md-3 d-flex align-items-end">
+                        <button class="camera-status-btn w-100" onclick="window.open('/camera_status', '_blank')">
+                            <i class="fas fa-info-circle"></i> Camera Status
+                        </button>
+                    </div>
+                </div>
+            </div>
         </div>
-        <div class="controls-wrapper">
-            <div class="column">
-                {{ html_int_controls|safe }}
+
+        <!-- Controls Panel -->
+        <div class="controls-panel">
+            <!-- Recording Controls -->
+            <div class="card">
+                <div class="card-header">
+                    <i class="fas fa-record-vinyl"></i>
+                    <h3>Recording & Capture</h3>
+                </div>
+                
+                <div class="action-buttons mb-3">
+                    <button class="btn btn-success" onclick="startRecording()">
+                        <i class="fas fa-play"></i> Start Recording
+                    </button>
+                    <button class="btn btn-danger" onclick="stopRecording()">
+                        <i class="fas fa-stop"></i> Stop Recording
+                    </button>
+                </div>
+
+                <div class="control-group">
+                    <label>Timelapse Interval (seconds)</label>
+                    <div class="input-group">
+                        <input type="number" class="form-control" id="timelapse-interval" value="5" min="1">
+                        <button class="btn btn-primary" onclick="startTimelapse()">
+                            <i class="fas fa-clock"></i> Start
+                        </button>
+                        <button class="btn btn-secondary" onclick="stopTimelapse()">
+                            <i class="fas fa-stop"></i> Stop
+                        </button>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <label>Quick Photo</label>
+                    <button class="btn btn-primary w-100" onclick="capturePhoto()">
+                        <i class="fas fa-camera"></i> Capture Photo
+                    </button>
+                </div>
             </div>
-            <div class="column">
-                {{ html_other_controls|safe }}
+
+            <!-- Basic Image Controls -->
+            <div class="card">
+                <div class="card-header">
+                    <i class="fas fa-sliders-h"></i>
+                    <h3>Image Settings</h3>
+                </div>
+                
+                <div class="camera-controls-grid">
+                    <!-- Render basic controls dynamically -->
+                    {% for name, ctrl in basic_controls %}
+                        {% if ctrl['type'] == 'int' %}
+                        <div class="control-group">
+                            <label>{{ name|title }}</label>
+                            <div class="range-control">
+                                <input type="range" id="{{ name }}" min="{{ ctrl['min'] }}" max="{{ ctrl['max'] }}"
+                                       step="{{ ctrl['step'] }}" value="{{ ctrl['current'] }}"
+                                       oninput="updateControl('{{ name }}', this.value)">
+                                <span class="range-value" id="{{ name }}-value">{{ ctrl['current'] }}</span>
+                            </div>
+                        </div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+
+                <button class="collapse-toggle" onclick="toggleAdvanced()">
+                    <i class="fas fa-chevron-down" id="advanced-icon"></i>
+                    Advanced Camera Settings
+                </button>
+
+                <div class="advanced-controls" id="advanced-controls" style="display: none;">
+                    <div class="camera-controls-grid">
+                        <!-- Render advanced controls dynamically -->
+                        {% for name, ctrl in advanced_controls %}
+                            {% if ctrl['type'] == 'int' %}
+                                {% if name == 'white_balance_temperature' %}
+                                <div class="control-group">
+                                    <label>White Balance</label>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input" type="checkbox" id="white_balance_automatic" 
+                                               {% if auto_white_balance_enabled %}checked{% endif %}
+                                               onchange="toggleWhiteBalance(this.checked)">
+                                        <label class="form-check-label">Auto White Balance</label>
+                                    </div>
+                                    <div class="range-control">
+                                        <input type="range" id="{{ name }}" min="{{ ctrl['min'] }}" max="{{ ctrl['max'] }}"
+                                               step="{{ ctrl['step'] }}" value="{{ ctrl['current'] }}"
+                                               {% if auto_white_balance_enabled %}disabled{% endif %}
+                                               oninput="updateControl('{{ name }}', this.value)">
+                                        <span class="range-value {% if auto_white_balance_enabled %}disabled{% endif %}" 
+                                              id="{{ name }}-value">{{ ctrl['current'] }}K</span>
+                                    </div>
+                                </div>
+                                {% elif name == 'exposure_time_absolute' %}
+                                <div class="control-group">
+                                    <label>Exposure</label>
+                                    <select class="form-select mb-2" id="auto_exposure" onchange="toggleExposure(this.value)">
+                                        <option value="0" {% if auto_exposure_mode == 0 %}selected{% endif %}>Manual</option>
+                                        <option value="1" {% if auto_exposure_mode == 1 %}selected{% endif %}>Auto</option>
+                                        <option value="3" {% if auto_exposure_mode == 3 %}selected{% endif %}>Aperture Priority</option>
+                                    </select>
+                                    <div class="range-control">
+                                        <input type="range" id="{{ name }}" min="{{ ctrl['min'] }}" max="{{ ctrl['max'] }}"
+                                               step="{{ ctrl['step'] }}" value="{{ ctrl['current'] }}"
+                                               {% if auto_exposure_mode != 0 %}disabled{% endif %}
+                                               oninput="updateControl('{{ name }}', this.value)">
+                                        <span class="range-value {% if auto_exposure_mode != 0 %}disabled{% endif %}" 
+                                              id="{{ name }}-value">{{ ctrl['current'] }}</span>
+                                    </div>
+                                </div>
+                                {% else %}
+                                <div class="control-group">
+                                    <label>{{ name|replace('_', ' ')|title }}</label>
+                                    <div class="range-control">
+                                        <input type="range" id="{{ name }}" min="{{ ctrl['min'] }}" max="{{ ctrl['max'] }}"
+                                               step="{{ ctrl['step'] }}" value="{{ ctrl['current'] }}"
+                                               oninput="updateControl('{{ name }}', this.value)">
+                                        <span class="range-value" id="{{ name }}-value">{{ ctrl['current'] }}</span>
+                                    </div>
+                                </div>
+                                {% endif %}
+                            {% elif ctrl['type'] == 'bool' and name != 'white_balance_automatic' %}
+                            <div class="control-group">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="{{ name }}" 
+                                           {% if ctrl['current'] == 1 %}checked{% endif %}
+                                           onchange="updateControl('{{ name }}', this.checked ? 1 : 0)">
+                                    <label class="form-check-label">{{ name|replace('_', ' ')|title }}</label>
+                                </div>
+                            </div>
+                            {% elif ctrl['type'] == 'menu' and name != 'auto_exposure' %}
+                            <div class="control-group">
+                                <label>{{ name|replace('_', ' ')|title }}</label>
+                                <select class="form-select" id="{{ name }}" onchange="updateControl('{{ name }}', this.value)">
+                                    {% for i in range(ctrl['min'], ctrl['max'] + 1) %}
+                                    <option value="{{ i }}" {% if i == ctrl['current'] %}selected{% endif %}>Option {{ i }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
             </div>
-            <div class="column">
+
+            <!-- File Management -->
+            <div class="card">
+                <div class="card-header">
+                    <i class="fas fa-folder"></i>
+                    <h3>File Management</h3>
+                </div>
+                
                 <div class="control-group">
-                    <label for="timelapse-interval">Interval (sec):</label>
-                    <input type="number" id="timelapse-interval" value="5" min="1">
+                    <label>Photo Directory</label>
+                    <input type="text" class="form-control" id="image-output" value="{{ config['image_output'] }}">
                 </div>
-                <div class="control-group" style="display: flex; gap: 10px;">
-                    <button onclick="startTimelapse()">Start Timelapse</button>
-                    <button onclick="stopTimelapse()">Stop Timelapse</button>
-                </div>
-                <div class="control-group" style="display: flex; gap: 10px;margin-top: 10px;">
-                    <button onclick="startRecording()">Start Recording</button>
-                    <button onclick="stopRecording()">Stop Recording</button>
-                </div>
+
                 <div class="control-group">
-                    <label for="capture-path">Photo Path:</label>
-                    <input type="text" id="capture-path" value="{{ config['image_output'] }}/capture.jpg">
+                    <label>Video Directory</label>
+                    <input type="text" class="form-control" id="video-output" value="{{ config['video_output'] }}">
                 </div>
-                <div class="control-group">
-                    <button onclick="capturePhoto()">Capture Photo</button>
-                </div>
-                <div class="control-group">
-                    <label for="image-output">Image Output:</label>
-                    <input type="text" id="image-output" value="{{ config['image_output'] }}">
-                </div>
-                <div class="control-group">
-                    <label for="video-output">Video Output:</label>
-                    <input type="text" id="video-output" value="{{ config['video_output'] }}">
-                </div>
-                <div class="control-group" style="margin-top: 10px;">
-                    <button onclick="saveConfig()">Save Config</button>
-                </div>
+
+                <button class="btn btn-primary w-100" onclick="saveConfig()">
+                    <i class="fas fa-save"></i> Save Configuration
+                </button>
             </div>
         </div>
     </div>
 
     <script>
+        let isAdvancedOpen = false;
+
+        function toggleAdvanced() {
+            const controls = document.getElementById('advanced-controls');
+            const icon = document.getElementById('advanced-icon');
+            
+            isAdvancedOpen = !isAdvancedOpen;
+            
+            if (isAdvancedOpen) {
+                controls.style.display = 'block';
+                icon.className = 'fas fa-chevron-up';
+            } else {
+                controls.style.display = 'none';
+                icon.className = 'fas fa-chevron-down';
+            }
+        }
+
+        function toggleExposure(mode) {
+            const slider = document.getElementById('exposure_time_absolute');
+            const valueSpan = document.getElementById('exposure_time_absolute-value');
+            const isManual = (mode === '0');
+            
+            if (slider && valueSpan) {
+                slider.disabled = !isManual;
+                if (isManual) {
+                    valueSpan.classList.remove('disabled');
+                } else {
+                    valueSpan.classList.add('disabled');
+                }
+            }
+            updateControl('auto_exposure', mode);
+        }
+
+        function toggleWhiteBalance(isAuto) {
+            const slider = document.getElementById('white_balance_temperature');
+            const valueSpan = document.getElementById('white_balance_temperature-value');
+            
+            if (slider && valueSpan) {
+                slider.disabled = isAuto;
+                if (isAuto) {
+                    valueSpan.classList.add('disabled');
+                } else {
+                    valueSpan.classList.remove('disabled');
+                }
+            }
+            updateControl('white_balance_automatic', isAuto ? 1 : 0);
+        }
+
         function updateControl(controlName, value) {
             fetch("/set_control", {
                 method: "POST",
@@ -74,12 +275,19 @@
                 body: JSON.stringify({ control: controlName, value: parseInt(value) })
             }).then(resp => resp.json()).then(data => {
                 const valueSpan = document.getElementById(controlName + "-value");
-                if (valueSpan) valueSpan.textContent = value;
+                if (valueSpan) {
+                    // Special formatting for temperature values
+                    if (controlName === 'white_balance_temperature') {
+                        valueSpan.textContent = value + 'K';
+                    } else {
+                        valueSpan.textContent = value;
+                    }
+                }
             });
         }
 
         function resetControls() {
-            if (confirm("Reset all controls to stored defaults and reinitialize camera?")) {
+            if (confirm("Reset all controls to default values?")) {
                 fetch("/reset_controls", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" }
@@ -95,6 +303,7 @@
                 body: JSON.stringify({ width: parseInt(w), height: parseInt(h), format: fmt })
             }).then(() => {
                 document.getElementById("videoStream").src = "/video_feed?t=" + new Date().getTime();
+                document.getElementById("resolution-display").textContent = w + "×" + h;
             });
         }
 
@@ -114,14 +323,21 @@
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ interval: interval })
             }).then(resp => resp.json())
-              .then(data => alert(data.message));
+              .then(data => {
+                  alert(data.message);
+                  updateStatus("timelapse");
+              });
         }
+
         function stopTimelapse() {
             fetch("/stop_timelapse", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" }
             }).then(resp => resp.json())
-              .then(data => alert(data.message));
+              .then(data => {
+                  alert(data.message);
+                  updateStatus("idle");
+              });
         }
 
         function startRecording() {
@@ -129,18 +345,26 @@
                 method: "POST",
                 headers: { "Content-Type": "application/json" }
             }).then(resp => resp.json())
-              .then(data => alert(data.message));
+              .then(data => {
+                  alert(data.message);
+                  updateStatus("recording");
+              });
         }
+
         function stopRecording() {
             fetch("/stop_recording", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" }
             }).then(resp => resp.json())
-              .then(data => alert(data.message));
+              .then(data => {
+                  alert(data.message);
+                  updateStatus("idle");
+              });
         }
 
         function capturePhoto() {
-            const path = document.getElementById("capture-path").value;
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            const path = document.getElementById("image-output").value + "/capture_" + timestamp + ".jpg";
             fetch("/capture_photo", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -157,7 +381,22 @@
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ image_output: img, video_output: vid })
             }).then(resp => resp.json())
-              .then(() => alert("Config saved"));
+              .then(() => alert("Configuration saved successfully!"));
+        }
+
+        function updateStatus(status) {
+            const statusDisplay = document.getElementById("status-display");
+            if (statusDisplay) {
+                statusDisplay.className = "status-indicator status-" + status;
+                
+                const statusText = {
+                    idle: '<i class="fas fa-circle"></i> Ready',
+                    recording: '<i class="fas fa-record-vinyl"></i> Recording',
+                    timelapse: '<i class="fas fa-clock"></i> Timelapse'
+                };
+                
+                statusDisplay.innerHTML = statusText[status] || statusText.idle;
+            }
         }
     </script>
 </body>
