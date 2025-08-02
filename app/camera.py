@@ -54,6 +54,8 @@ class ThreadSafeCameraController:
         self.device_path = device
         self.cap = None
         self.frame_queue = queue.Queue(maxsize=2)
+        self.raw_frame_queues = []
+        self.raw_lock = threading.Lock()
         self.capture_thread = None
         self.streaming = False
         self.camera_lock = threading.RLock()
@@ -89,6 +91,7 @@ class ThreadSafeCameraController:
                     continue
                 ret, frame = self.cap.read()
             if ret and frame is not None:
+                self._broadcast_raw_frame(frame)
                 ret_encode, jpeg = cv2.imencode(
                     ".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 70]
                 )
@@ -107,6 +110,28 @@ class ThreadSafeCameraController:
                 failures = 0
             delay = 1 / self.desired_fps if self.desired_fps > 0 else 0.033
             time.sleep(delay)
+
+    def register_raw_frame_queue(self):
+        q = queue.Queue(maxsize=1)
+        with self.raw_lock:
+            self.raw_frame_queues.append(q)
+        return q
+
+    def _broadcast_raw_frame(self, frame):
+        with self.raw_lock:
+            queues = list(self.raw_frame_queues)
+        for q in queues:
+            try:
+                q.put_nowait(frame)
+            except queue.Full:
+                try:
+                    q.get_nowait()
+                except queue.Empty:
+                    pass
+                try:
+                    q.put_nowait(frame)
+                except queue.Full:
+                    pass
 
     def get_current_resolution(self):
         with self.camera_lock:

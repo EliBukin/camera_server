@@ -1,6 +1,7 @@
 import os
 import threading
 import time
+import queue
 import cv2
 
 
@@ -11,6 +12,7 @@ class TimeLapseCapturer:
         self.interval = 5
         self.running = False
         self.thread = None
+        self.frame_queue = self.camera.register_raw_frame_queue()
         os.makedirs(self.output_dir, exist_ok=True)
 
     def start(self, interval):
@@ -27,12 +29,16 @@ class TimeLapseCapturer:
 
     def capture_loop(self):
         count = 0
+        next_capture = time.time()
         while self.running:
-            with self.camera.camera_lock:
-                ret, frame = self.camera.cap.read()
-            if ret and frame is not None:
+            try:
+                frame = self.frame_queue.get(timeout=1)
+            except queue.Empty:
+                continue
+            now = time.time()
+            if now >= next_capture:
                 filename = os.path.join(self.output_dir, f"frame_{count:05d}.jpg")
                 cv2.imwrite(filename, frame)
                 print(f"[TimeLapse] Captured: {filename}")
                 count += 1
-            time.sleep(self.interval)
+                next_capture = now + self.interval
