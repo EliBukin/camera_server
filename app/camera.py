@@ -120,6 +120,13 @@ class ThreadSafeCameraController:
             frame = self.frame_queue.get_nowait()
         return frame
 
+    def get_frame_blocking(self, timeout=None):
+        """Return the next frame, blocking until one is available."""
+        try:
+            return self.frame_queue.get(block=True, timeout=timeout)
+        except queue.Empty:
+            return None
+
     def _get_supported_resolutions(self):
         cmd = f"v4l2-ctl --device={self.device_path} --list-formats-ext"
         result = subprocess.run(

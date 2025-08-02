@@ -283,10 +283,9 @@ def video_feed():
             if not camera:
                 time.sleep(0.1)
                 continue
-            frame = camera.get_latest_frame()
+            frame = camera.get_frame_blocking()
             if frame:
                 yield (b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + frame + b"\r\n")
-            time.sleep(0.033)
 
     return Response(generate(), mimetype="multipart/x-mixed-replace; boundary=frame")
 
