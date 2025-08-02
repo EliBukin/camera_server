@@ -52,6 +52,11 @@ class ThreadSafeCameraController:
         self, device="/dev/video0", timelapse_dir="timelapse", video_dir="videos"
     ):
         self.device_path = device
+        # Reuse the base v4l2-ctl command so subprocess doesn't need to parse the
+        # same arguments repeatedly when multiple controls are set in sequence.
+        # TODO: explore using a dedicated Python V4L2 binding for improved
+        # performance and error handling.
+        self._v4l2_base_cmd = ["v4l2-ctl", f"--device={self.device_path}"]
         self.cap = None
         self.frame_queue = queue.Queue(maxsize=2)
         self.raw_frame_queues = []
@@ -288,9 +293,9 @@ class ThreadSafeCameraController:
                         f"WARNING: {control_name} value {value} is out of bounds [{ctrl['min']}-{ctrl['max']}], skipping"
                     )
                     return False
-            cmd = f"v4l2-ctl --device={self.device_path} --set-ctrl={control_name}={value}"
+            cmd = self._v4l2_base_cmd + [f"--set-ctrl={control_name}={value}"]
             result = subprocess.run(
-                cmd, shell=True, capture_output=True, text=True, timeout=5
+                cmd, capture_output=True, text=True, timeout=5
             )
             if result.returncode == 0:
                 print(f"Set {control_name} = {value}")
