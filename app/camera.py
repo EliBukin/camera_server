@@ -60,6 +60,7 @@ class ThreadSafeCameraController:
         self.settings_lock = threading.Lock()
         self.stored_defaults = {}
         self.original_hardware_defaults = {}
+        self.desired_fps = 15
 
         self._initialize_camera()
         self.start_streaming()
@@ -104,7 +105,8 @@ class ThreadSafeCameraController:
                 print("Reinitializing camera...")
                 self._initialize_camera()
                 failures = 0
-            time.sleep(0.033)
+            delay = 1 / self.desired_fps if self.desired_fps > 0 else 0.033
+            time.sleep(delay)
 
     def get_current_resolution(self):
         with self.camera_lock:
@@ -156,7 +158,9 @@ class ThreadSafeCameraController:
         self.cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*fmt))
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
-        self.cap.set(cv2.CAP_PROP_FPS, 15)
+        self.cap.set(cv2.CAP_PROP_FPS, self.desired_fps)
+        fps = self.cap.get(cv2.CAP_PROP_FPS)
+        self.desired_fps = fps if fps > 0 else self.desired_fps
         self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 
     def get_camera_controls(self):
