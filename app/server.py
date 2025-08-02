@@ -46,72 +46,52 @@ def index():
         return "Camera not initialized", 500
 
     w, h = camera.get_current_resolution()
+    current_resolution = f"{w}×{h}"
+    
+    # Generate resolution options
     options_html = "\n".join(
         f'<option value="{fmt},{w},{h}">{fmt} - {w}x{h}</option>'
         for fmt, w, h in camera.supported_resolutions
     )
 
+    # Generate camera options
     camera_options_html = "\n".join(
         f'<option value="{dev}" {"selected" if dev == camera.device_path else ""}>{name}</option>'
         for name, dev in available_cameras
     )
 
-    int_controls = []
-    other_controls = []
+    # Categorize controls
+    basic_control_names = ['brightness', 'contrast', 'saturation', 'sharpness']
+    advanced_control_names = [
+        'gamma', 'gain', 'white_balance_temperature', 'exposure_time_absolute', 
+        'focus_absolute', 'backlight_compensation', 'power_line_frequency'
+    ]
+    
+    basic_controls = []
+    advanced_controls = []
+    
     for name, ctrl in camera.controls_info.items():
-        if ctrl["type"] == "int":
-            int_controls.append((name, ctrl))
-        else:
-            other_controls.append((name, ctrl))
-
-    def render_controls(control_list):
-        html = ""
-        for name, ctrl in control_list:
-            if ctrl["type"] == "int":
-                html += f"""
-                <div class="control-group">
-                    <label>{name}</label>
-                    <input type="range" id="{name}" min="{ctrl['min']}" max="{ctrl['max']}"
-                        step="{ctrl['step']}" value="{ctrl['current']}"
-                        oninput="updateControl('{name}', this.value)" />
-                    <span id="{name}-value">{ctrl['current']}</span>
-                </div>
-                """
-            elif ctrl["type"] == "bool":
-                checked = "checked" if ctrl["current"] == 1 else ""
-                html += f"""
-                <div class="control-group">
-                    <label>
-                        <input type="checkbox" id="{name}" {checked}
-                            onchange="updateControl('{name}', this.checked ? 1 : 0)" />
-                        {name}
-                    </label>
-                </div>
-                """
-            elif ctrl["type"] == "menu":
-                options = "".join(
-                    f'<option value="{i}" {"selected" if i == ctrl["current"] else ""}>Option {i}</option>'
-                    for i in range(ctrl["min"], ctrl["max"] + 1)
-                )
-                html += f"""
-                <div class="control-group">
-                    <label>{name}</label>
-                    <select id="{name}" onchange="updateControl('{name}', this.value)">
-                        {options}
-                    </select>
-                </div>
-                """
-        return html
-
-    html_int_controls = render_controls(int_controls)
-    html_other_controls = render_controls(other_controls)
+        if name in basic_control_names:
+            basic_controls.append((name, ctrl))
+        elif name in advanced_control_names or name not in basic_control_names:
+            advanced_controls.append((name, ctrl))
+    
+    # Sort to ensure consistent order
+    basic_controls.sort(key=lambda x: basic_control_names.index(x[0]) if x[0] in basic_control_names else 999)
+    
+    # Get auto mode states
+    auto_white_balance_enabled = camera.controls_info.get('white_balance_automatic', {}).get('current', 1) == 1
+    auto_exposure_mode = camera.controls_info.get('auto_exposure', {}).get('current', 1)
 
     return render_template(
         "index.html",
         options_html=options_html,
         camera_options_html=camera_options_html,
-        html_int_controls=html_int_controls,
-        html_other_controls=html_other_controls,
+        basic_controls=basic_controls,
+        advanced_controls=advanced_controls,
+        auto_white_balance_enabled=auto_white_balance_enabled,
+        auto_exposure_mode=auto_exposure_mode,
+        current_resolution=current_resolution,
         config=config,
     )
 
