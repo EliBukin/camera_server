@@ -1,6 +1,7 @@
 import os
 import threading
 import time
+import queue
 import cv2
 
 
@@ -12,6 +13,7 @@ class VideoRecorder:
         self.thread = None
         self.writer = None
         self.output_file = None
+        self.frame_queue = self.camera.register_raw_frame_queue()
         os.makedirs(self.output_dir, exist_ok=True)
 
     def start(self, filename=None, fps=15):
@@ -40,9 +42,9 @@ class VideoRecorder:
 
     def record_loop(self):
         while self.recording:
-            with self.camera.camera_lock:
-                ret, frame = self.camera.cap.read()
-            if ret and frame is not None and self.writer:
+            try:
+                frame = self.frame_queue.get(timeout=1)
+            except queue.Empty:
+                continue
+            if self.writer:
                 self.writer.write(frame)
-            else:
-                time.sleep(0.05)
