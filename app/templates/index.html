@@ -129,7 +129,7 @@
                                 <div class="control-group">
                                     <label>White Balance</label>
                                     <div class="form-check mb-2">
-                                        <input class="form-check-input" type="checkbox" id="white_balance_automatic" 
+                                        <input class="form-check-input" type="checkbox" id="white_balance_temperature_auto"
                                                {% if auto_white_balance_enabled %}checked{% endif %}
                                                onchange="toggleWhiteBalance(this.checked)">
                                         <label class="form-check-label">Auto White Balance</label>
@@ -171,7 +171,7 @@
                                     </div>
                                 </div>
                                 {% endif %}
-                            {% elif ctrl['type'] == 'bool' and name != 'white_balance_automatic' %}
+                            {% elif ctrl['type'] == 'bool' and name != 'white_balance_temperature_auto' %}
                             <div class="control-group">
                                 <div class="form-check">
                                     <input class="form-check-input" type="checkbox" id="{{ name }}" 
@@ -265,7 +265,7 @@
                     valueSpan.classList.remove('disabled');
                 }
             }
-            updateControl('white_balance_automatic', isAuto ? 1 : 0);
+            updateControl('white_balance_temperature_auto', isAuto ? 1 : 0);
         }
 
         function updateControl(controlName, value) {
