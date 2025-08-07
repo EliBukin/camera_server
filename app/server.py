@@ -80,7 +80,7 @@ def index():
     basic_controls.sort(key=lambda x: basic_control_names.index(x[0]) if x[0] in basic_control_names else 999)
     
     # Get auto mode states
-    auto_white_balance_enabled = camera.controls_info.get('white_balance_automatic', {}).get('current', 1) == 1
+    auto_white_balance_enabled = camera.controls_info.get('white_balance_temperature_auto', {}).get('current', 1) == 1
     auto_exposure_mode = camera.controls_info.get('auto_exposure', {}).get('current', 1)
 
     return render_template(
